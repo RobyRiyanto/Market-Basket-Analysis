@@ -1,0 +1,230 @@
+---
+title: "Market Basket Analysis"
+author: "Roby"
+date: "8/28/2020"
+output: html_document
+---
+
+# Overview
+
+One of the business innovations in the retail sector is looking for associations or relationships between products from sales transaction data that aim to:
+
+* packaged and sold together.
+* provide a product recommendation to someone.
+* arrange display racks.
+* compile e-commerce product pages.
+
+All of these things aim to increase sales as well as solve inventory problems - because products that don't sell well if paired correctly are more attractive and are more likely to be purchased in one package. This process is an analysis process known as **Market Basket Analysis (MBA)**.
+
+The algorithm that can be used in R to do this **MBA** is **apriori** from package *arules*. Only two data are needed, namely transaction data and product data.
+
+# Data Preparation
+
+This project uses a dataset from academy dqlab which can be downloaded [here](https://academy.dqlab.id/dataset/data_transaksi.txt)
+
+## load package
+
+```{r warning=FALSE, message=FALSE}
+library(arules)
+library(arulesViz)
+library(dplyr)
+```
+
+## Impot Data
+
+```{r warning=FALSE, message=FALSE}
+# Read transactions from file data_transaksi.txt
+data_transaction <- read.transactions(file="https://academy.dqlab.id/dataset/data_transaksi.txt", format="single", sep="\t", cols=c(1,2), skip=1)
+```
+
+# Association Rule Mining
+
+We will use the arules package, to help us perform association mining on this dataset.
+
+```{r}
+# Displays the number of combinations of products contained in the list of existing transactions
+inspect(apriori(data_transaction, parameter = list(support=.1, minlen=2, target='frequent itemsets')))
+```
+
+It can be seen that there are nine product combinations with the value of support which is the ratio of the combination to the entire transaction.
+
+*For example*, the combination {Pet Food, Sirup} has support for 0.4, which means that this combination is present in 4 out of 10 recorded transactions.
+
+## Displays a List of Transaction Items
+
+```{r}
+data_transaction@itemInfo
+```
+You can see that there are four items contained in all of our transaction data, namely Gula, Pet Food, Sirup and Teh Celup.
+
+## Displays a List of Transaction Codes
+
+```{r}
+data_transaction@itemsetInfo
+```
+
+You can see that there are ten transaction codes in all of our transactions, namely codes `#01` to `#10`.
+
+## Item Frequency
+
+```{r}
+itemFrequency(data_transaction)
+```
+These results indicate that the frequency of appearance of Gula is 0.4 or 40 percent of the portion of all existing transactions, Pet Food occupies 50 percent, and so on.
+
+```{r}
+# or we can use this 
+itemFrequency(data_transaction, type="absolute")
+```
+## Top 3 statistics
+
+Simple statistics to answer questions such as "Which 3 items have the highest number of transactions in all?" can not be done directly with one function in R, but it needs to combine several commands, one of which is the *sort* function.
+
+```{r}
+data_item <- itemFrequency(data_transaction, type="absolute")
+
+# Doing sorting on data_item
+data_item <- sort(data_item, decreasing = TRUE)
+
+# Take the first 3 items
+data_item <- data_item[1:3]
+
+# Convert data_item into  dataframe with Product_Name and Amount columns
+data_item <- data.frame("Product_Name" = names(data_item), "Amount" = data_item, row.names=NULL)
+
+# Save as file
+write.csv(data_item, file="output/top3_item_retail.txt", eol = "\r\n")
+```
+
+## Plot
+
+```{r}
+# Displays the frequency plot item
+itemFrequencyPlot(data_transaction)
+```
+
+## Itemset And Rules
+
+```{r}
+# View Itemset per Transaction with Inspect
+inspect(data_transaction)
+```
+
+```{r}
+# Generates association rules and saves as variable mba
+mba <- apriori(data_transaction)
+
+# View Rules with the inspect function
+inspect(mba)
+```
+
+this means that with this apriori function, we get three rules.
+
+We can see that the mba variable stores three rules with the following columns:
+* Lhs: itemset on the left (left hand side)
+* Rhs: itemset on the right (right hand side)
+* support, confidence and lift: metrics used to assess the quality of a rule. Generally the bigger the better.
+
+If we focus back on the lhs and rhs itemset for product packaging, we can see that the second rule, {Pet Food} => {Sirup} is quite interesting.
+
+**Why?**
+
+Because support **0.4** indicates that this combination is at 40 percent of the population - that is 4 out of 10 transactions for our dataset. The lift value is also above 1, which means that this rule has a high association between the itemset contained in this rule.
+
+Meanwhile, {} => {Teh Celup} are not attractive because they only contain one item. The remaining rule, {Gula, Pet Food} => {Sirup} is too unique - it is indicated by 0.1 (10%) support which means it is only found in 1 in 10 transactions.
+
+What is the meaning of a rule if we want to apply it?
+
+This means that there are several item action options that we can do:
+* Recommend to every customer who buys Pet Food to buy Sirup.
+* Display rack Pet Food and Syrup can be brought closer.
+* Pet Food and Sirup are packaged together and sold at a special price.
+
+## Filter RHS
+
+From the results of inspecting the `mba` object of type association rules in the previous practice, we now understand that this object contains a lot of information including the itemset on the left hand side and right hand side.
+
+This is important for business, for example for inventory. We want to answer, are there items that were not selling well before in the itemset of the rules generated by apriori? If there were, maybe We can pack together so most likely sold more.
+
+We just take an example with our case. Suppose we want to retrieve rules whose rhs column contains Sirup, then the command is as follows.
+
+```{r}
+# Filter the RHS
+inspect(subset(mba, rhs %in% "Sirup"))
+
+```
+
+## Filter LHS
+
+We will also do the same with LHS
+
+```{r}
+# Filter LHS
+inspect(subset(mba, lhs %in% "Gula"))
+```
+## FIlter LHS And RHS
+
+```{r}
+# FIlter LHS And RHS
+inspect(subset(mba, lhs %in% "Pet Food" & rhs %in% "Sirup"))
+```
+
+# Scoring And Evaluations
+
+**Support, Confidence and Lift**
+
+## Generating Rules with Support and Confidence Parameters
+
+Reproduces association rules with apriori function, but this time with additional parameters the minimum support and confidence values 0.1 and 0.5, respectively.
+
+```{r}
+# Generating Rules with Support and Confidence Parameters
+mba <- apriori(data_transaction, parameter = list(supp = 0.1, confidence = 0.5))
+
+# Notice that at the end of the output line, there are 16 rules. More than the previous apriori command execution which only resulted in 3 rules.
+
+# Resulting Inspection Rules
+inspect(mba)
+```
+
+It can be seen that by changing the parameters in the apriori function, we get a number of different rules.
+
+```{r}
+# Filter LHS and RHS
+inspect(subset(mba, lhs %in% "Teh Celup" | rhs %in% "Teh Celup"))
+```
+
+There are 9 rules as a result of the filter and if we use support, confidence and lift information ... then a good candidate might only be rule 8 where the lift value is more than 1 ({Pet Food, Teh Celup} => {Sirup}).
+
+## Filter Based Lift
+
+```{r}
+# Filter based lift
+inspect(subset(mba, (lhs %in% "Teh Celup" | rhs %in% "Teh Celup") & lift>1))
+```
+
+## Recommendations - Filter by %ain%
+
+```{r}
+# Recommendations - Filter by %ain%
+inspect(subset(mba, (lhs %ain% c("Pet Food", "Gula"))))
+```
+
+There is only 1 rule as a result of the filter, and with a lift above 1 and support for 0.1 (10%) this rule can be considered feasible to produce item recommendations, namely Sirup.
+
+**So people who buy Gula and Pet Food, can offer Sirup.**
+
+# Visualizing Rules with Graph
+
+```{r}
+# Visualizing Rules with Graph
+plot(subset(mba, lift>1.1), method="graph")
+```
+
+The size of the circle indicates popularity, and the intensity of the color indicates lift. You can see here Gula to Sirup, and Pet Food to Sirup have a relatively high lift but the support is not too big.
+
+
+
+
+
+
