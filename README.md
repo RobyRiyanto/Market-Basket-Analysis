@@ -12,4 +12,4 @@ All of these things aim to increase sales as well as solve inventory problems - 
 The algorithm that can be used in R to do this MBA is apriori from package arules. Only two data are needed, namely transaction data and product data.
 
 
-![](mba.png)
+![](output/mba.png)
